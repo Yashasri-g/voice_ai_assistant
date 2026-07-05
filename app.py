@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from transformers import pipeline
 import numpy as np
+from csv_schema import normalize_text_dataframe, split_manual_text
 
 # -------------------------------
 # PAGE CONFIG
@@ -19,22 +20,29 @@ st.sidebar.header("📂 Data Input")
 input_mode = st.sidebar.radio("Select Input Type", ["📄 Upload CSV", "📝 Enter Text Manually"])
 
 if input_mode == "📄 Upload CSV":
-    uploaded_file = st.sidebar.file_uploader("Upload CSV (must have a 'text' column)", type=["csv"])
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload CSV with text, review, feedback, comment, or Xquik Tweet Text",
+        type=["csv"],
+    )
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        if "text" not in df.columns:
-            st.error("CSV must contain a column named 'text'")
+        try:
+            df, schema = normalize_text_dataframe(pd.read_csv(uploaded_file))
+        except ValueError as error:
+            st.error(str(error))
             st.stop()
+        if schema.dropped_rows:
+            st.info(f"Ignored {schema.dropped_rows} empty text row(s).")
     else:
         st.info("👆 Upload a CSV to begin analysis")
         st.stop()
 
 else:
     user_text = st.text_area("🧠 Enter your text or comments (each line = one entry):", height=200)
-    if not user_text.strip():
+    text_rows = split_manual_text(user_text)
+    if not text_rows:
         st.info("✍️ Enter some text to analyze")
         st.stop()
-    df = pd.DataFrame({"text": user_text.split("\n")})
+    df = pd.DataFrame({"text": text_rows})
 
 st.subheader("🧾 Data Preview")
 st.dataframe(df.head())
